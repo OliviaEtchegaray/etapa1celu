@@ -40,7 +40,7 @@ function setup(){
   faceapi = ml5.faceApi(video, faceOptions, () => faceapi.detect(gotFaces));
 
   textFont('Arial');
-  textSize(28);
+  textSize(36);
   fill(255,0,0);
   textAlign(LEFT,TOP);
   timer = millis();
@@ -52,7 +52,7 @@ function gotFaces(err, result){
 }
 
 function draw(){
-  background(state === "face" ? 0 : 255);
+  background(state === "face" ? 0 : 30);
 
   // transición cámara
   camScale = lerp(camScale, targetScale, 0.05);
@@ -68,18 +68,18 @@ function draw(){
     image(video,0,0,width,height);
     drawFaceDetection();
   } else {
-    // glitch de video
-    drawGlitchVideo();
+    // glitch de video por toda la pantalla
+    drawFullScreenGlitch();
   }
 
   pop();
 
   // ESTRELLAS EN MODO TEXTO
   if(state === "text"){
-    if(frameCount % 5 === 0) 
-      stars.push({x:random(width), y:random(height), spikes:5, outer:20, inner:8});
+    if(frameCount % 3 === 0) 
+      stars.push({x:random(width), y:random(height), spikes:5, outer:25, inner:10});
     for(let s of stars) drawStar(s.x, s.y, s.spikes, s.outer, s.inner);
-    if(stars.length > 300) stars.splice(0, stars.length-300);
+    if(stars.length > 400) stars.splice(0,stars.length-400);
   }
 
   // MODO FACE → cambiar a texto
@@ -94,11 +94,11 @@ function draw(){
       targetY = height*0.65; 
     }
   } else if(state === "text"){
-    // texto tipo máquina de escribir
-    textSize(32);
+    // texto tipo máquina de escribir, más grande y rápido
+    textSize(42);
     fill(0);
     textAlign(LEFT,TOP);
-    if(msgIndex < message.length && millis()-timer > 20){
+    if(msgIndex < message.length && millis()-timer > 12){ // más rápido
       displayedText += message[msgIndex];
       msgIndex++;
       timer = millis();
@@ -127,28 +127,24 @@ function draw(){
       }
     }
   }
+
+  // @estreiia_ fijo abajo
+  textAlign(CENTER,BOTTOM);
+  textSize(32);
+  fill(255,0,0);
+  text("@estreiia_", width/2, height-10);
 }
 
+// -------- DETECCIÓN DE ROSTRO --------
 function drawFaceDetection(){
   for(let d of detections){
     if(d.landmarks){
       let pts = d.landmarks.positions;
 
-      // dibujar puntos (espejo cámara)
-      push();
-      translate(width,0);
-      scale(-1,1);
+      // puntos en rojo (sin invertir)
       fill(255,0,0);
       noStroke();
-      for(let p of pts){
-        ellipse(p._x, p._y, 8, 8);
-      }
-      pop();
-
-      // textos normales
-      fill(255,0,0);
-      noStroke();
-      textSize(28); 
+      textSize(28);
       textAlign(LEFT,CENTER);
 
       let nombres = {
@@ -164,38 +160,14 @@ function drawFaceDetection(){
 
       for(let [nombre, idx] of Object.entries(nombres)){
         let p = pts[idx];
-        let mirroredX = width - p._x; 
-        text(`${nombre} (${int(p._x)},${int(p._y)})`, mirroredX+12, p._y);
+        ellipse(p._x, p._y, 8, 8); 
+        text(`${nombre} (${int(p._x)},${int(p._y)})`, p._x+12, p._y);
       }
     }
   }
 }
 
-function drawGlitchVideo(){
-  // bandas horizontales
-  for(let i=0; i<12; i++){
-    let y = i * (height/12);
-    let h = height/12;
-    let offset = random(-100,100);
-    tint(255, 0, 0, 120);
-    image(video, offset, y, width, h, 0, y, width, h);
-  }
-
-  // duplicación espejada
-  push();
-  translate(width,0);
-  scale(-1,1);
-  tint(255,0,0,80);
-  image(video,0,0,width,height);
-  pop();
-
-  // estiramiento pulsante
-  let stretch = map(sin(frameCount*0.2),-1,1,0.7,1.3);
-  tint(255,0,0,50);
-  image(video,0,0,width*stretch,height);
-  noTint();
-}
-
+// -------- FUNCIONES AUXILIARES --------
 function drawStar(cx,cy,spikes,outer,inner){
   let angle=TWO_PI/spikes, halfAngle=angle/2;
   beginShape();
@@ -207,13 +179,29 @@ function drawStar(cx,cy,spikes,outer,inner){
   endShape(CLOSE);
 }
 
+function drawFullScreenGlitch(){
+  // duplicar la captura varias veces con desplazamientos y escalas aleatorias
+  for(let i=0;i<5;i++){
+    let dx = random(-50,50);
+    let dy = random(-50,50);
+    let sc = random(0.9,1.1);
+    push();
+    translate(dx,dy);
+    scale(sc);
+    tint(random(150,255), random(150,255), random(150,255), 150);
+    image(video,0,0,width,height);
+    pop();
+  }
+}
+
 function mousePressed(){
   if(state==="face"){
     state="text"; msgIndex=0; displayedText=""; timer=millis();
     targetScale=0.25;
     targetX=width*0.65;
     targetY=height*0.65;
-  } else if(state==="text"){
+  }
+  else if(state==="text"){
     state="face"; timer=millis();
     targetScale=1.0;
     targetX=0;
