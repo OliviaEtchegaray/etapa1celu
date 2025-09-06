@@ -1,14 +1,15 @@
 let video, faceapi, detections = [];
+let stars = [];
 let state = "face"; 
 let timer = 0, msgIndex = 0;
 let displayedText = "";
+let glitchTimer = 0;
+
+// cámara en transición
+let camScale = 1.0, targetScale = 1.0; 
 let camX = 0, camY = 0, targetX = 0, targetY = 0;
-let camScale = 1, targetScale = 1;
-let showArrow = false;
 
-// estrellas flotando
-let stars = [];
-
+// mensaje confesionario
 let message = `Decís que tus secretos son tuyos,
 pero cada palabra que no compartís también deja huella.
 El algoritmo interpreta lo que callás,
@@ -32,17 +33,26 @@ en capital para una máquina que no olvida?`;
 
 function setup(){
   createCanvas(windowWidth, windowHeight);
+
+  // captura de cámara
   video = createCapture(VIDEO);
   video.size(windowWidth, windowHeight);
   video.hide();
 
-  const faceOptions = { withLandmarks: true, withExpressions:false, withDescriptors:false };
+  // configuración de FaceApi
+  const faceOptions = { 
+    withLandmarks: true, 
+    withExpressions: false, 
+    withDescriptors: false 
+  };
   faceapi = ml5.faceApi(video, faceOptions, () => faceapi.detect(gotFaces));
 
+  // estilo de texto
   textFont('Arial');
-  textSize(60);
+  textSize(28);
   fill(255,0,0);
   textAlign(LEFT,TOP);
+
   timer = millis();
 }
 
@@ -52,129 +62,153 @@ function gotFaces(err, result){
 }
 
 function draw(){
-  background(state==="text" ? 255 : 0);
+  background(state === "face" ? 0 : 255);
 
-  // generar estrellas de fondo
-  if(frameCount % 5 === 0){
-    stars.push({x:random(width), y:random(height), spikes:5, outer:20, inner:8});
-  }
-  if(stars.length > 200) stars.splice(0, stars.length-200);
-
-  for(let s of stars){
-    drawStar(s.x, s.y, s.spikes, s.outer, s.inner);
+  // --- modo texto: estrellas flotantes ---
+  if(state === "text"){
+    if(frameCount % 5 === 0) 
+      stars.push({x:random(width), y:random(height), spikes:5, outer:20, inner:8});
+    for(let s of stars) drawStar(s.x, s.y, s.spikes, s.outer, s.inner);
+    if(stars.length > 300) stars.splice(0, stars.length-300);
   }
 
-  // transición cámara
-  camScale = lerp(camScale,targetScale,0.05);
-  camX = lerp(camX,targetX,0.05);
-  camY = lerp(camY,targetY,0.05);
+  // --- transición cámara ---
+  camScale = lerp(camScale, targetScale, 0.05);
+  camX = lerp(camX, targetX, 0.05);
+  camY = lerp(camY, targetY, 0.05);
 
+  // --- cámara + detección en espejo ---
   push();
-  translate(camX,camY);
+  translate(width,0);   
+  scale(-1,1); 
+  translate(camX, camY);
   scale(camScale);
   image(video,0,0,width,height);
-  if(state==="face") drawFaceDetection();
+  drawFaceDetection();
   pop();
 
-  if(state==="face"){
-    if(millis()-timer>3000){ // después de 3s desliza
-      targetScale = 0.25;
-      targetX = width*0.65;
-      targetY = height*0.65;
-      state="text";
-      msgIndex = 0;
-      displayedText="";
-      timer = millis();
-      showArrow = true;
+  // --- flujo de estados ---
+  if(state === "face"){
+    if(millis()-timer > 5000){ 
+      state="text"; 
+      msgIndex=0; 
+      displayedText=""; 
+      timer=millis(); 
+      targetScale=0.25;
+      targetX = width*0.65; 
+      targetY = height*0.65; 
     }
   }
-
-  // modo texto
-  if(state==="text"){
-    textSize(80); // mucho más grande
-    fill(0);
-    textAlign(LEFT,TOP);
-    if(msgIndex < message.length && millis()-timer>5){ // más rápido
-      displayedText += message[msgIndex];
-      msgIndex++;
-      timer = millis();
-    }
-    text(displayedText,20,height*0.05,width*0.7,height*0.9);
-
-    // flecha para volver a cámara
-    if(showArrow){
-      fill(255,0,0);
-      noStroke();
-      triangle(width-60,height/2-20,width-20,height/2,width-60,height/2+20);
-    }
+  else if(state === "text"){
+    drawConfessionalText();
   }
-
-  // usuario abajo
-  textAlign(CENTER,BOTTOM);
-  textSize(28);
-  fill(255,0,0);
-  text("@estreiia_",width/2,height-10);
 }
 
+// --- detección facial ---
 function drawFaceDetection(){
   for(let d of detections){
     if(d.landmarks){
       let pts = d.landmarks.positions;
-      fill(0,0,0,0);
-      stroke(255,0,0);
-      strokeWeight(2);
 
-      // zonas importantes con marcos contorneados
-      let areas = [
-        {name:"Ojo izquierdo", idx:[36,39]},
-        {name:"Ojo derecho", idx:[42,45]},
-        {name:"Nariz", idx:[27,30]},
-        {name:"Boca", idx:[48,54]},
-        {name:"Frente", idx:[19,24]},
-        {name:"Oreja izq", idx:[0,0]},
-        {name:"Oreja der", idx:[16,16]},
-        {name:"Barbilla", idx:[8,8]}
-      ];
+      // dibujar puntos en espejo
+      push();
+      translate(width,0);
+      scale(-1,1);
+      fill(255,0,0);
+      noStroke();
+      for(let p of pts){
+        ellipse(p._x, p._y, 8, 8);
+      }
+      pop();
 
-      for(let area of areas){
-        let x1 = pts[area.idx[0]]._x;
-        let y1 = pts[area.idx[0]]._y;
-        let x2 = pts[area.idx[1]]._x;
-        let y2 = pts[area.idx[1]]._y;
-        let w = max(10,abs(x2-x1)+20);
-        let h = max(10,abs(y2-y1)+20);
-        rect(x1-10,y1-10,w,h);
+      // textos normales (sin espejo)
+      fill(255,0,0);
+      noStroke();
+      textSize(28);
+      textAlign(LEFT,CENTER);
+
+      let nombres = {
+        "Ojo izquierdo":36,
+        "Ojo derecho":45,
+        "Nariz":30,
+        "Boca":62,
+        "Oreja izq":0,
+        "Oreja der":16,
+        "Barbilla":8,
+        "Frente":27
+      };
+
+      for(let [nombre, idx] of Object.entries(nombres)){
+        let p = pts[idx];
+        let mirroredX = width - p._x; // corrección espejo
+        text(`${nombre} (${int(p._x)},${int(p._y)})`, mirroredX+12, p._y);
       }
     }
   }
 }
 
+// --- texto confesionario con animación ---
+function drawConfessionalText(){
+  textSize(32);
+  fill(0);
+  textAlign(LEFT,TOP);
+
+  if(msgIndex < message.length && millis()-timer > 15){
+    displayedText += message[msgIndex];
+    msgIndex++;
+    timer = millis();
+  }
+  text(displayedText,20,height*0.05,width*0.7,height*0.9);
+
+  if(msgIndex >= message.length){
+    if(millis()-timer > 2000){
+      if(millis()-glitchTimer > 100){
+        for(let i=0;i<10;i++) drawStar(random(width),random(height),5,25,10);
+        glitchTimer=millis();
+      }
+      textAlign(CENTER,CENTER);
+      textSize(48);
+      fill(255,0,0);
+      text("CONFESIONARIO ALGORÍTMICO",width/2,height/2);
+
+      if(millis()-timer > 4000){
+        state="face";
+        timer=millis();
+        targetScale=1.0;
+        targetX=0;
+        targetY=0;
+      }
+    }
+  }
+}
+
+// --- función estrella ---
 function drawStar(cx,cy,spikes,outer,inner){
-  let angle = TWO_PI/spikes;
-  let halfAngle = angle/2;
+  let angle=TWO_PI/spikes, halfAngle=angle/2;
   beginShape();
   noFill();
   stroke(255,0,0);
   strokeWeight(2);
   for(let a=0;a<TWO_PI;a+=angle){
-    let sx = cx + cos(a)*outer;
-    let sy = cy + sin(a)*outer;
-    vertex(sx,sy);
-    sx = cx + cos(a+halfAngle)*inner;
-    sy = cy + sin(a+halfAngle)*inner;
-    vertex(sx,sy);
+    let sx=cx+cos(a)*outer, sy=cy+sin(a)*outer; vertex(sx,sy);
+    sx=cx+cos(a+halfAngle)*inner; sy=cy+sin(a+halfAngle)*inner; vertex(sx,sy);
   }
   endShape(CLOSE);
 }
 
+// --- interacción ---
 function mousePressed(){
-  if(state==="text" && mouseX>width-80 && mouseX<width-10 && mouseY>height/2-30 && mouseY<height/2+30){
-    state="face";
-    targetScale = 1;
-    targetX = 0;
-    targetY = 0;
-    showArrow = false;
-    timer = millis();
+  if(state==="face"){
+    state="text"; msgIndex=0; displayedText=""; timer=millis();
+    targetScale=0.25;
+    targetX=width*0.65;
+    targetY=height*0.65;
+  }
+  else if(state==="text"){
+    state="face"; timer=millis();
+    targetScale=1.0;
+    targetX=0;
+    targetY=0;
   }
 }
 
