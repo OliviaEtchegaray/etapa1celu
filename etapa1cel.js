@@ -9,7 +9,7 @@ let glitchTimer = 0;
 let camScale = 1.0, targetScale = 1.0; 
 let camX = 0, camY = 0, targetX = 0, targetY = 0;
 
-let sensorActive = true; // controla si el sensor detecta rostros
+let sensorActive = true;
 
 let message = `Decís que tus secretos son tuyos,
 pero cada palabra que no compartís también deja huella.
@@ -58,8 +58,7 @@ function gotFaces(err, result){
 function draw(){
   background(state === "face" ? 0 : 255);
 
-  // verificar tamaño de cámara para activar/desactivar sensor
-  sensorActive = (width*targetScale > 200 && height*targetScale > 150); // threshold ajustable
+  sensorActive = (width*targetScale > 200 && height*targetScale > 150);
 
   if(state === "text"){
     if(frameCount % 5 === 0) 
@@ -72,17 +71,17 @@ function draw(){
   camX = lerp(camX, targetX, 0.05);
   camY = lerp(camY, targetY, 0.05);
 
-  // cámara en espejo
+  // cámara espejo
   push();
   translate(width,0);
   scale(-1,1);
   translate(camX, camY);
   scale(camScale);
   image(video,0,0,width,height);
-  if(sensorActive && state === "face") drawFaceDetection(); // solo si sensor activo
+  if(sensorActive && state === "face") drawFacePoints(); // solo puntos y líneas
   pop();
 
-  drawFaceLabels();   // etiquetas legibles sin espejo
+  drawFaceLabels();
 
   if(state === "face"){
     if(millis()-timer > 5000){ 
@@ -99,42 +98,23 @@ function draw(){
   }
 }
 
-// --- dibujo de puntos y marcos (profesional) ---
-function drawFaceDetection(){
+// --- puntos rojos conectados ---
+function drawFacePoints(){
   for(let d of detections){
     if(d.landmarks){
       let pts = d.landmarks.positions;
+      fill(255,0,0);
+      stroke(255,0,0);
+      strokeWeight(2);
 
-      stroke(255,0,0,180);
-      strokeWeight(3);
-      noFill();
-
-      let areas = [
-        {name:"Ojo izquierdo", idx:[36,39]},
-        {name:"Ojo derecho", idx:[42,45]},
-        {name:"Nariz", idx:[27,30]},
-        {name:"Boca", idx:[48,54]},
-        {name:"Frente", idx:[19,24]},
-        {name:"Oreja izq", idx:[0,0]},
-        {name:"Oreja der", idx:[16,16]},
-        {name:"Barbilla", idx:[8,8]}
-      ];
-
-      for(let area of areas){
-        let x1 = pts[area.idx[0]]._x;
-        let y1 = pts[area.idx[0]]._y;
-        let x2 = pts[area.idx[1]]._x;
-        let y2 = pts[area.idx[1]]._y;
-        let w = max(10,abs(x2-x1)+20);
-        let h = max(10,abs(y2-y1)+20);
-        rect(x1-10,y1-10,w,h,8); // borde redondeado para look moderno
+      // dibujar puntos
+      for(let p of pts){
+        ellipse(p._x, p._y, 8, 8);
       }
 
-      // puntos importantes
-      fill(255,0,0);
-      noStroke();
-      for(let p of pts){
-        ellipse(p._x,p._y,6,6);
+      // conectar puntos con líneas (con secuencia simple)
+      for(let i=0; i<pts.length-1; i++){
+        line(pts[i]._x, pts[i]._y, pts[i+1]._x, pts[i+1]._y);
       }
     }
   }
