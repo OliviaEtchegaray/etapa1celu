@@ -6,6 +6,9 @@ let camX = 0, camY = 0, targetX = 0, targetY = 0;
 let camScale = 1, targetScale = 1;
 let showArrow = false;
 
+// estrellas flotando
+let stars = [];
+
 let message = `Decís que tus secretos son tuyos,
 pero cada palabra que no compartís también deja huella.
 El algoritmo interpreta lo que callás,
@@ -37,7 +40,7 @@ function setup(){
   faceapi = ml5.faceApi(video, faceOptions, () => faceapi.detect(gotFaces));
 
   textFont('Arial');
-  textSize(36);
+  textSize(60);
   fill(255,0,0);
   textAlign(LEFT,TOP);
   timer = millis();
@@ -50,6 +53,16 @@ function gotFaces(err, result){
 
 function draw(){
   background(state==="text" ? 255 : 0);
+
+  // generar estrellas de fondo
+  if(frameCount % 5 === 0){
+    stars.push({x:random(width), y:random(height), spikes:5, outer:20, inner:8});
+  }
+  if(stars.length > 200) stars.splice(0, stars.length-200);
+
+  for(let s of stars){
+    drawStar(s.x, s.y, s.spikes, s.outer, s.inner);
+  }
 
   // transición cámara
   camScale = lerp(camScale,targetScale,0.05);
@@ -78,10 +91,10 @@ function draw(){
 
   // modo texto
   if(state==="text"){
-    textSize(40);
+    textSize(80); // mucho más grande
     fill(0);
     textAlign(LEFT,TOP);
-    if(msgIndex < message.length && millis()-timer>15){
+    if(msgIndex < message.length && millis()-timer>5){ // más rápido
       displayedText += message[msgIndex];
       msgIndex++;
       timer = millis();
@@ -98,7 +111,7 @@ function draw(){
 
   // usuario abajo
   textAlign(CENTER,BOTTOM);
-  textSize(24);
+  textSize(28);
   fill(255,0,0);
   text("@estreiia_",width/2,height-10);
 }
@@ -111,7 +124,7 @@ function drawFaceDetection(){
       stroke(255,0,0);
       strokeWeight(2);
 
-      // zonas importantes
+      // zonas importantes con marcos contorneados
       let areas = [
         {name:"Ojo izquierdo", idx:[36,39]},
         {name:"Ojo derecho", idx:[42,45]},
@@ -136,9 +149,26 @@ function drawFaceDetection(){
   }
 }
 
+function drawStar(cx,cy,spikes,outer,inner){
+  let angle = TWO_PI/spikes;
+  let halfAngle = angle/2;
+  beginShape();
+  noFill();
+  stroke(255,0,0);
+  strokeWeight(2);
+  for(let a=0;a<TWO_PI;a+=angle){
+    let sx = cx + cos(a)*outer;
+    let sy = cy + sin(a)*outer;
+    vertex(sx,sy);
+    sx = cx + cos(a+halfAngle)*inner;
+    sy = cy + sin(a+halfAngle)*inner;
+    vertex(sx,sy);
+  }
+  endShape(CLOSE);
+}
+
 function mousePressed(){
   if(state==="text" && mouseX>width-80 && mouseX<width-10 && mouseY>height/2-30 && mouseY<height/2+30){
-    // clic en flecha: volver a cámara
     state="face";
     targetScale = 1;
     targetX = 0;
