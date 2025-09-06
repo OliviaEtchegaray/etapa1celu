@@ -58,8 +58,7 @@ function gotFaces(err, result){
 function draw(){
   background(state === "face" ? 0 : 255);
 
-  sensorActive = (width*targetScale > 200 && height*targetScale > 150);
-
+  // estrellas flotando en modo texto
   if(state === "text"){
     if(frameCount % 5 === 0) 
       stars.push({x:random(width), y:random(height), spikes:5, outer:20, inner:8});
@@ -92,6 +91,7 @@ function draw(){
       targetScale=0.25;
       targetX = width*0.65; 
       targetY = height*0.65; 
+      sensorActive = false; // desactiva sensor al reducir cámara
     }
   } else if(state === "text"){
     drawConfessionalText();
@@ -112,7 +112,7 @@ function drawFacePoints(){
         ellipse(p._x, p._y, 8, 8);
       }
 
-      // conectar puntos con líneas (con secuencia simple)
+      // conectar puntos con líneas
       for(let i=0; i<pts.length-1; i++){
         line(pts[i]._x, pts[i]._y, pts[i+1]._x, pts[i+1]._y);
       }
@@ -180,6 +180,7 @@ function drawConfessionalText(){
         targetScale=1.0;
         targetX=0;
         targetY=0;
+        sensorActive = true; // vuelve a activar sensor
       }
     }
   }
@@ -206,12 +207,14 @@ function mousePressed(){
     targetScale=0.25;
     targetX=width*0.65;
     targetY=height*0.65;
+    sensorActive = false;
   }
   else if(state==="text"){
     state="face"; timer=millis();
     targetScale=1.0;
     targetX=0;
     targetY=0;
+    sensorActive = true;
   }
 }
 
