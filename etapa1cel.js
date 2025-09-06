@@ -11,7 +11,7 @@ let camX = 0, camY = 0, targetX = 0, targetY = 0;
 
 let message = `Decís que tus secretos son tuyos,
 pero cada palabra que no compartís también deja huella.
-El algoritmo interpreta lo que callás,
+el algoritmo interpreta lo que callás,
 deduce lo que ocultás,
 predice lo que nunca dijiste.
 Las fotos que borraste,
@@ -48,12 +48,33 @@ function setup(){
 
 function gotFaces(err, result){
   if(result) detections = result;
-  faceapi.detect(gotFaces);
+  if(state === "face") faceapi.detect(gotFaces);
 }
 
 function draw(){
   background(state === "face" ? 0 : 255);
 
+  // transición cámara
+  camScale = lerp(camScale, targetScale, 0.05);
+  camX = lerp(camX, targetX, 0.05);
+  camY = lerp(camY, targetY, 0.05);
+
+  push();
+  translate(camX, camY);
+  scale(camScale);
+
+  if(state === "face"){
+    // cámara con detección de puntos
+    image(video,0,0,width,height);
+    drawFaceDetection();
+  } else {
+    // glitch de video
+    drawGlitchVideo();
+  }
+
+  pop();
+
+  // ESTRELLAS EN MODO TEXTO
   if(state === "text"){
     if(frameCount % 5 === 0) 
       stars.push({x:random(width), y:random(height), spikes:5, outer:20, inner:8});
@@ -61,22 +82,7 @@ function draw(){
     if(stars.length > 300) stars.splice(0, stars.length-300);
   }
 
-  camScale = lerp(camScale, targetScale, 0.05);
-  camX = lerp(camX, targetX, 0.05);
-  camY = lerp(camY, targetY, 0.05);
-
-  // cámara en espejo
-  push();
-  translate(width,0);
-  scale(-1,1);
-  translate(camX, camY);
-  scale(camScale);
-  image(video,0,0,width,height);
-  drawFacePoints();  // puntos rojos en espejo
-  pop();
-
-  drawFaceLabels();   // textos legibles (sin espejo)
-
+  // MODO FACE → cambiar a texto
   if(state === "face"){
     if(millis()-timer > 5000){ 
       state="text"; 
@@ -88,32 +94,61 @@ function draw(){
       targetY = height*0.65; 
     }
   } else if(state === "text"){
-    drawConfessionalText();
-  }
-}
+    // texto tipo máquina de escribir
+    textSize(32);
+    fill(0);
+    textAlign(LEFT,TOP);
+    if(msgIndex < message.length && millis()-timer > 20){
+      displayedText += message[msgIndex];
+      msgIndex++;
+      timer = millis();
+    }
+    text(displayedText,20,height*0.05,width*0.7,height*0.9);
 
-// --- puntos rojos (en espejo) ---
-function drawFacePoints(){
-  for(let d of detections){
-    if(d.landmarks){
-      let pts = d.landmarks.positions;
-      fill(255,0,0);
-      noStroke();
-      for(let p of pts){
-        ellipse(p._x, p._y, 8, 8);
+    // glitch + CONFESIONARIO
+    if(msgIndex >= message.length){
+      if(millis()-timer > 2000){
+        if(millis()-glitchTimer > 100){
+          for(let i=0;i<10;i++) drawStar(random(width),random(height),5,25,10);
+          glitchTimer=millis();
+        }
+        textAlign(CENTER,CENTER);
+        textSize(48);
+        fill(255,0,0);
+        text("CONFESIONARIO ALGORÍTMICO",width/2,height/2);
+
+        if(millis()-timer > 4000){
+          state="face";
+          timer=millis();
+          targetScale=1.0;
+          targetX=0;
+          targetY=0;
+        }
       }
     }
   }
 }
 
-// --- etiquetas y coordenadas (sin espejo, legibles) ---
-function drawFaceLabels(){
+function drawFaceDetection(){
   for(let d of detections){
     if(d.landmarks){
       let pts = d.landmarks.positions;
+
+      // dibujar puntos (espejo cámara)
+      push();
+      translate(width,0);
+      scale(-1,1);
       fill(255,0,0);
       noStroke();
-      textSize(28);
+      for(let p of pts){
+        ellipse(p._x, p._y, 8, 8);
+      }
+      pop();
+
+      // textos normales
+      fill(255,0,0);
+      noStroke();
+      textSize(28); 
       textAlign(LEFT,CENTER);
 
       let nombres = {
@@ -129,55 +164,42 @@ function drawFaceLabels(){
 
       for(let [nombre, idx] of Object.entries(nombres)){
         let p = pts[idx];
-        let mirroredX = width - p._x; // ajustar para coincidir con el espejo
+        let mirroredX = width - p._x; 
         text(`${nombre} (${int(p._x)},${int(p._y)})`, mirroredX+12, p._y);
       }
     }
   }
 }
 
-// --- texto confesionario ---
-function drawConfessionalText(){
-  textSize(32);
-  fill(0);
-  textAlign(LEFT,TOP);
-
-  if(msgIndex < message.length && millis()-timer > 20){
-    displayedText += message[msgIndex];
-    msgIndex++;
-    timer = millis();
+function drawGlitchVideo(){
+  // bandas horizontales
+  for(let i=0; i<12; i++){
+    let y = i * (height/12);
+    let h = height/12;
+    let offset = random(-100,100);
+    tint(255, 0, 0, 120);
+    image(video, offset, y, width, h, 0, y, width, h);
   }
-  text(displayedText,20,height*0.05,width*0.7,height*0.9);
 
-  if(msgIndex >= message.length){
-    if(millis()-timer > 2000){
-      if(millis()-glitchTimer > 100){
-        for(let i=0;i<10;i++) drawStar(random(width),random(height),5,25,10);
-        glitchTimer=millis();
-      }
-      textAlign(CENTER,CENTER);
-      textSize(48);
-      fill(255,0,0);
-      text("CONFESIONARIO ALGORÍTMICO",width/2,height/2);
+  // duplicación espejada
+  push();
+  translate(width,0);
+  scale(-1,1);
+  tint(255,0,0,80);
+  image(video,0,0,width,height);
+  pop();
 
-      if(millis()-timer > 4000){
-        state="face";
-        timer=millis();
-        targetScale=1.0;
-        targetX=0;
-        targetY=0;
-      }
-    }
-  }
+  // estiramiento pulsante
+  let stretch = map(sin(frameCount*0.2),-1,1,0.7,1.3);
+  tint(255,0,0,50);
+  image(video,0,0,width*stretch,height);
+  noTint();
 }
 
-// --- estrellas ---
 function drawStar(cx,cy,spikes,outer,inner){
   let angle=TWO_PI/spikes, halfAngle=angle/2;
   beginShape();
-  noFill();
-  stroke(255,0,0);
-  strokeWeight(2);
+  noFill();stroke(255,0,0);strokeWeight(2);
   for(let a=0;a<TWO_PI;a+=angle){
     let sx=cx+cos(a)*outer, sy=cy+sin(a)*outer; vertex(sx,sy);
     sx=cx+cos(a+halfAngle)*inner; sy=cy+sin(a+halfAngle)*inner; vertex(sx,sy);
@@ -185,15 +207,13 @@ function drawStar(cx,cy,spikes,outer,inner){
   endShape(CLOSE);
 }
 
-// --- interacción ---
 function mousePressed(){
   if(state==="face"){
     state="text"; msgIndex=0; displayedText=""; timer=millis();
     targetScale=0.25;
     targetX=width*0.65;
     targetY=height*0.65;
-  }
-  else if(state==="text"){
+  } else if(state==="text"){
     state="face"; timer=millis();
     targetScale=1.0;
     targetX=0;
